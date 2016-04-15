@@ -19,8 +19,8 @@ class APIReturnedError(Exception):
 class VideoAPIMixin:
     # Constants
     API_URL = 'https://www.googleapis.com/youtube/v3/'
-    api_key_file = os.path.join(os.path.dirname(__file__), 'api_key.txt')
-    with open(api_key_file, 'r') as f:
+    API_key_file = os.path.join(os.path.dirname(__file__), 'api_key.txt')
+    with open(API_key_file, 'r') as f:
         API_KEY = f.read()
 
     @classmethod

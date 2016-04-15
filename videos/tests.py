@@ -28,3 +28,6 @@ class VideoTestCase(TestCase, VideoAPIMixin):
         # them
         self.assertEqual(Video.objects.exclude(viewcount=None).count(),
                          Video.objects.count())
+    def test_category_associated(self):
+        self.assertEqual(Video.objects.exclude(category=None).count(),
+                         Video.objects.count())
