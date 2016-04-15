@@ -13,10 +13,10 @@ class VideoTestCase(TestCase, VideoAPIMixin):
                           # Don't need to be embarassed while testing
                           safeSearch='strict', 
                           type='video')
-        json = self._get_info_from_api('search', parameters)
+        JSON = self._get_info_from_api('search', parameters)
         video_ids = [data['id']['videoId']
                      for data
-                     in json['items']]
+                     in JSON['items']]
         for video_id in video_ids:
             Video.objects.create_video(video_id)
 
