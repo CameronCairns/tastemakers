@@ -49,7 +49,9 @@ class Video(models.Model):
     published = models.DateTimeField(_('Video publication date'))
     title = models.CharField(_('Video title'), max_length=100)
     updated = models.DateTimeField(_('Last updated'), auto_now=True)
-    video_id = models.CharField(_('Youtube ID for video'), max_length=500)
+    video_id = models.CharField(_('Youtube ID for video'),
+                                unique=True,
+                                max_length=500)
 
     # Relationships
     # category = models.ForeignKey(_('Video category'), Category)
