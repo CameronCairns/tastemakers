@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'videos',
 ]
 
 MIDDLEWARE_CLASSES = [
@@ -78,7 +79,7 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'taste_makers',
-        'USER': 'tate_makers',
+        'USER': 'taste_makers',
         'PASSWORD': '123456',
         'HOST': '127.0.0.1',
         'PORT': '5432',
