@@ -17,8 +17,7 @@ class VideoTestCase(TestCase, VideoAPIMixin):
         video_ids = [data['id']['videoId']
                      for data
                      in JSON['items']]
-        for video_id in video_ids:
-            Video.objects.create_video(video_id)
+        Video.objects.create_videos(*video_ids)
 
     def test_video_objects_created(self):
         # Make sure video objects are created
@@ -27,8 +26,5 @@ class VideoTestCase(TestCase, VideoAPIMixin):
     def test_view_count_created_on_video_save(self):
         # Make sure that all video objects have view counts associated with
         # them
-        self.assertEqual(len([video
-                              for video
-                              in Video.objects.all()
-                              if video.viewcount_set.count() > 0]),
-                         Video.objects.all().count())
+        self.assertEqual(Video.objects.exclude(viewcount=None).count(),
+                         Video.objects.count())
