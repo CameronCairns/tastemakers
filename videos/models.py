@@ -5,6 +5,14 @@ import dateutil.parser
 
 from videos.mixins import VideoAPIMixin
 
+class Category(models.Model):
+    """
+    Every youtube video must have a category assigned to it so we keep track
+    of them here to easily find videos belonging to each category
+    """
+    # Attributes
+    title = models.CharField(_('Category title'), max_length=100)
+
 class VideoManager(models.Manager, VideoAPIMixin):
     """
     Custom manager needed to couple the gathering of data needed to create
@@ -26,11 +34,13 @@ class VideoManager(models.Manager, VideoAPIMixin):
                           fields=fields)
         # Get JSON from API response 
         JSON = self._get_info_from_api('videos', parameters)
-        videos = [Video(description=video_info['snippet']['description'],
+        videos = [Video(category_id=video_info['snippet']['categoryId'],
+                        description=video_info['snippet']['description'],
                         published=dateutil.parser.parse(
                             video_info['snippet']['publishedAt']),
                         title=video_info['snippet']['title'],
                         video_id=video_ids[i])
+                        
                   for i, video_info
                   in enumerate(JSON['items'])]
         self.bulk_create(videos)
@@ -54,7 +64,9 @@ class Video(models.Model):
                                 max_length=500)
 
     # Relationships
-    # category = models.ForeignKey(_('Video category'), Category)
+    category = models.ForeignKey(Category,
+                                 on_delete=models.CASCADE,
+                                 verbose_name=_('Video category'))
     # uploader = models.ForeignKey(_('Video uploader'), User)
 
     # Many to Many Relationships
