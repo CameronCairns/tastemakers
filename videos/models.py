@@ -10,24 +10,35 @@ class VideoManager(models.Manager, VideoAPIMixin):
     Custom manager needed to couple the gathering of data needed to create
     an object with its api calls and logic
     """
-    def create_video(self, video_id):
+    def create_videos(self, *video_ids):
+        """
+        function allows for the singular or bulk creation of video objects
+        given their video_id
+        """
         # Define the fields to receive from the API
         fields =('items/snippet('
                  'publishedAt, categoryId, tags, title, description)')
-        # Define the parameters to supply to the API
+        # Define the api parameters shared by all videos
+        # Note the syntax in defining the id, api allows for getting info
+        # on multiple videos given a comma separated video_id list
         parameters = dict(part='snippet',
-                          id=video_id,
+                          id=', '.join(video_ids),
                           fields=fields)
-        # Get JSON from API response
+        # Get JSON from API response 
         JSON = self._get_info_from_api('videos', parameters)
-        # Information needed is located at the snippet key
-        snippet = JSON['items'][0]['snippet']
-        published_datetime = dateutil.parser.parse(snippet['publishedAt'])
-        # Now create the object with the gathered information and return it
-        return self.create(description=snippet['description'],
-                           published=published_datetime,
-                           title=snippet['title'],
-                           video_id=video_id)
+        videos = [Video(description=video_info['snippet']['description'],
+                        published=dateutil.parser.parse(
+                            video_info['snippet']['publishedAt']),
+                        title=video_info['snippet']['title'],
+                        video_id=video_ids[i])
+                  for i, video_info
+                  in enumerate(JSON['items'])]
+        self.bulk_create(videos)
+        # Need to fetch the saved videos from the database since bulk create
+        # does not update the previously created video objects
+        videos = Video.objects.filter(video_id__in=video_ids).all()
+        ViewCount.objects.create_viewcounts(*videos)
+                
 
 class Video(models.Model):
     # Attributes
@@ -53,35 +64,25 @@ class Video(models.Model):
     def __str__(self):
         return self.title
 
-    def save(self, *args, **kwargs):
-        # Find the view count for the video once it has been successfully
-        # created
-        if self.id is None:
-            # Object has not been created yet 
-            super(Video, self).save(*args, **kwargs)
-            self.update_view_count()
-        else:
-            # Object is just being updated
-            super(Video, self).save(*args, **kwargs)
-
-    def update_view_count(self):
-        ViewCount.objects.create_viewcount(self)
-
 class ViewCountManager(models.Manager, VideoAPIMixin):
     """
     Custom manager needed to couple the gathering of data needed to create
     an object with its api calls and logic
     """
-    def create_viewcount(self, video):
+    def create_viewcounts(self, *videos):
         # Define the parameters to supply to the API
         parameters = dict(part='statistics',
-                          id=video.video_id,
+                          id=', '.join(video.video_id for video in videos),
                           fields='items/statistics/viewCount')
         # Get JSON from API response
         JSON = self._get_info_from_api('videos', parameters)
-        # Now create the object with the gathered information and return it
-        return self.create(views=JSON['items'][0]['statistics']['viewCount'],
-                           video=video)
+        # Extract view counts for each video
+        viewcounts = [ViewCount(views=video_info['statistics']['viewCount'],
+                                video=videos[i])
+                      for i, video_info
+                      in enumerate(JSON['items'])]
+        # Now create the object(s) with the gathered information
+        self.bulk_create(viewcounts)
 
 class ViewCount(models.Model):
     # Attributes
