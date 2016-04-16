@@ -9,7 +9,7 @@ class VideoTestCase(TestCase, VideoAPIMixin):
     def setUp(self):
         parameters = dict(part='id',
                           fields='items/id/videoId',
-                          max_result=10, 
+                          maxResults=10, 
                           # Don't need to be embarassed while testing
                           safeSearch='strict', 
                           type='video')

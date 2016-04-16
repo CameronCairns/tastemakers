@@ -1,4 +1,7 @@
+import pdb
+
 from django.db import models
+from django.db.utils import IntegrityError
 from django.utils.translation import ugettext_lazy as _
 
 import dateutil.parser
@@ -11,10 +14,10 @@ class Category(models.Model):
     of them here to easily find videos belonging to each category
     """
     # Attributes
-    title = models.CharField(_('Category title'), max_length=100, unique=True)
+    title = models.CharField(_('Category title'), max_length=100)
 
     def __str__(self):
-        return title
+        return self.title
 
 class Tag(models.Model):
     """
@@ -25,7 +28,7 @@ class Tag(models.Model):
     title = models.CharField(_('Tag title'), max_length=500, unique=True)
 
     def __str__(self):
-        return title
+        return self.title
 
 class VideoManager(models.Manager, VideoAPIMixin):
     """
@@ -37,6 +40,16 @@ class VideoManager(models.Manager, VideoAPIMixin):
         function allows for the singular or bulk creation of video objects
         given their video_id
         """
+        # Ensure there are no repeat video_ids entered
+        video_ids = list(set(video_ids))
+        # Find videos that already exist to avoid bulk create failure
+        extant_videos = Video.objects.filter(
+                video_id__in=video_ids).values_list('video_id', flat=True)
+        # Derive new video_ids from excluding members of extant video_ids
+        video_ids = [video_id
+                     for video_id
+                     in video_ids
+                     if video_id not in extant_videos]
         # Define the fields to receive from the API
         fields =('items/snippet('
                  'publishedAt, categoryId, tags, title, description)')
@@ -48,7 +61,10 @@ class VideoManager(models.Manager, VideoAPIMixin):
                           fields=fields)
         JSON = self._get_info_from_api('videos', parameters)
         # Collect tags for creation and/or association after video creation
-        tags = {video_ids[i]: video_info['snippet']['tags']
+        tags = {video_ids[i]:
+                    (video_info['snippet']['tags']
+                    if 'tags' in video_info['snippet']
+                    else [])
                 for i, video_info
                 in enumerate(JSON['items'])}
         # Collect video objects for bulk creation
@@ -71,19 +87,24 @@ class VideoManager(models.Manager, VideoAPIMixin):
         # object
         for video in videos:
             if tags[video.video_id]:
+                # Ensure there are no repeat tags
+                unique_tags = list(set(tags[video.video_id]))
                 # Find tags that already exist to avoid bulk create failure
                 extant_tags = Tag.objects.filter(
-                        title__in=tags[video.video_id]).values_list(
+                        title__in=unique_tags).values_list(
                                 'title', flat=True)
                 # Derive new_tags from any associated tags that don't already
                 # exist in Tags table
                 new_tags = [Tag(title=tag)
                             for tag
-                            in tags[video.video_id]
+                            in unique_tags
                             if tag not in extant_tags]
                 # Create any new tags
                 if new_tags:
-                    Tag.objects.bulk_create(new_tags)
+                    try:
+                        Tag.objects.bulk_create(new_tags)
+                    except IntegrityError:
+                        pdb.set_trace()
                 # Now gather all tag objects and associate them with the video
                 video_tags = Tag.objects.filter(title__in=tags[video.video_id])
                 video.tags.add(*video_tags)
@@ -101,7 +122,7 @@ class Video(models.Model):
     updated = models.DateTimeField(_('Last updated'), auto_now=True)
     video_id = models.CharField(_('Youtube ID for video'),
                                 unique=True,
-                                max_length=500)
+                                max_length=100)
 
     # Relationships
     category = models.ForeignKey(Category,

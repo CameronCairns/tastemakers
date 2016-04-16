@@ -20,6 +20,7 @@ class VideoAPIMixin:
     # Constants
     API_URL = 'https://www.googleapis.com/youtube/v3/'
     API_key_file = os.path.join(os.path.dirname(__file__), 'api_key.txt')
+    SESSION = requests.Session()
     with open(API_key_file, 'r') as f:
         API_KEY = f.read()
 
@@ -27,7 +28,7 @@ class VideoAPIMixin:
     def get_info_from_api(cls, uri, params):
         url = cls.API_URL + uri
         parameters = {**{'key': cls.API_KEY}, **params}
-        response = requests.get(url, params=parameters)
+        response = cls.SESSION.get(url, params=parameters)
         if response.ok:
             return response.json()
         else:
