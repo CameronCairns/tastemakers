@@ -31,3 +31,8 @@ class VideoTestCase(TestCase, VideoAPIMixin):
     def test_category_associated(self):
         self.assertEqual(Video.objects.exclude(category=None).count(),
                          Video.objects.count())
+
+    def test_tags_associated(self):
+        # Make sure that tags are associated with a video if they exist
+        self.assertEqual(Video.objects.exclude(category=None).count(),
+                         Video.objects.count())

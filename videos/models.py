@@ -11,7 +11,21 @@ class Category(models.Model):
     of them here to easily find videos belonging to each category
     """
     # Attributes
-    title = models.CharField(_('Category title'), max_length=100)
+    title = models.CharField(_('Category title'), max_length=100, unique=True)
+
+    def __str__(self):
+        return title
+
+class Tag(models.Model):
+    """
+    Each youtube video has a variety of tags. Store them as a separate table
+    to allow for finding videos with the same tag
+    """
+    # Attributes
+    title = models.CharField(_('Tag title'), max_length=500, unique=True)
+
+    def __str__(self):
+        return title
 
 class VideoManager(models.Manager, VideoAPIMixin):
     """
@@ -32,8 +46,12 @@ class VideoManager(models.Manager, VideoAPIMixin):
         parameters = dict(part='snippet',
                           id=', '.join(video_ids),
                           fields=fields)
-        # Get JSON from API response 
         JSON = self._get_info_from_api('videos', parameters)
+        # Collect tags for creation and/or association after video creation
+        tags = {video_ids[i]: video_info['snippet']['tags']
+                for i, video_info
+                in enumerate(JSON['items'])}
+        # Collect video objects for bulk creation
         videos = [Video(category_id=video_info['snippet']['categoryId'],
                         description=video_info['snippet']['description'],
                         published=dateutil.parser.parse(
@@ -47,7 +65,29 @@ class VideoManager(models.Manager, VideoAPIMixin):
         # Need to fetch the saved videos from the database since bulk create
         # does not update the previously created video objects
         videos = Video.objects.filter(video_id__in=video_ids).all()
+        # Find the view count for all the recently created videos
         ViewCount.objects.create_viewcounts(*videos)
+        # Create and/or associate each videos tags with that video using a tag
+        # object
+        for video in videos:
+            if tags[video.video_id]:
+                # Find tags that already exist to avoid bulk create failure
+                extant_tags = Tag.objects.filter(
+                        title__in=tags[video.video_id]).values_list(
+                                'title', flat=True)
+                # Derive new_tags from any associated tags that don't already
+                # exist in Tags table
+                new_tags = [Tag(title=tag)
+                            for tag
+                            in tags[video.video_id]
+                            if tag not in extant_tags]
+                # Create any new tags
+                if new_tags:
+                    Tag.objects.bulk_create(new_tags)
+                # Now gather all tag objects and associate them with the video
+                video_tags = Tag.objects.filter(title__in=tags[video.video_id])
+                video.tags.add(*video_tags)
+        return videos
                 
 
 class Video(models.Model):
@@ -70,7 +110,9 @@ class Video(models.Model):
     # uploader = models.ForeignKey(_('Video uploader'), User)
 
     # Many to Many Relationships
-    # tags = models.ManyToManyField(_('Video tags'), Tag, blank=True)
+    tags = models.ManyToManyField(Tag,
+                                  verbose_name=_('Video tags'))
+                                  
 
     # Manager
     objects = VideoManager()
