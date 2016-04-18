@@ -107,3 +107,10 @@ class VideosTestCase(TestCase, VideoAPIMixin):
         user.followed_tags.add(*tag_ids)
         self.assertEqual(user.followed_tags.count(),
                          Tag.objects.count())
+
+    def test_user_can_favorite_videos(self):
+        user = User.objects.all()[0]
+        video_ids = Video.objects.values_list('id', flat=True)
+        user.favorite_videos.add(*video_ids)
+        self.assertEqual(user.favorite_videos.count(),
+                         Video.objects.count())

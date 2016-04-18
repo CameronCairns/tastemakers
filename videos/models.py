@@ -153,6 +153,8 @@ class Video(models.Model):
                                    verbose_name=_('Users who liked video'),
                                    related_name='liked_videos')
     favorited_by = models.ManyToManyField(User,
+                                          related_name='favorite_videos',
+                                          symmetrical=False,
                                           verbose_name=_(
                                               'Users who favorited video'))
 
