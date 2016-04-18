@@ -5,10 +5,10 @@ from django.db.utils import IntegrityError
 from django.test import TestCase
 
 from profiles.models import User
-from videos.models import Comment, Video, Vote
+from videos.models import Comment, Video, Vote, Category, Tag
 from videos.mixins import VideoAPIMixin
 
-class VideoTestCase(TestCase, VideoAPIMixin):
+class VideosTestCase(TestCase, VideoAPIMixin):
     def setUp(self):
         parameters = dict(part='id',
                           fields='items/id/videoId',
@@ -93,3 +93,17 @@ class VideoTestCase(TestCase, VideoAPIMixin):
             self.assertTrue(0, 'duplicate vote allowed')
         except IntegrityError:
             pass
+
+    def test_user_can_follow_categories(self):
+        user = User.objects.all()[0]
+        category_ids = Category.objects.values_list('id', flat=True)
+        user.followed_categories.add(*category_ids)
+        self.assertEqual(user.followed_categories.count(),
+                         Category.objects.count())
+
+    def test_user_can_follow_tags(self):
+        user = User.objects.all()[0]
+        tag_ids = Tag.objects.values_list('id', flat=True)
+        user.followed_tags.add(*tag_ids)
+        self.assertEqual(user.followed_tags.count(),
+                         Tag.objects.count())

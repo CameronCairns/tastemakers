@@ -20,8 +20,10 @@ class Category(models.Model):
 
     # Many to Many Relationships
     followed_by = models.ManyToManyField(User,
-                                   verbose_name=_(
-                                       'Users following this category'))
+                                         verbose_name=_(
+                                           'Users following this category'),
+                                         symmetrical=False,
+                                         related_name='followed_categories')
                                          
 
     def __str__(self):
@@ -37,7 +39,10 @@ class Tag(models.Model):
 
     # Many to Many Relationships
     followed_by = models.ManyToManyField(User,
-                                   verbose_name=_('Users following this tag'))
+                                         verbose_name=_(
+                                             'Users following this tag'),
+                                         symmetrical=False,
+                                         related_name='followed_tags')
 
     def __str__(self):
         return self.title
