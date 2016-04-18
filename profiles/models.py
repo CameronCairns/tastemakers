@@ -12,21 +12,26 @@ class User(AbstractUser):
     email_verified = models.BooleanField(_('Email is verified'),
                                          default=False)
 
-    # Many to Many Relations
-    followed_users = models.ManyToManyField('self',
-                                            verbose_name=_('Followed users'))
+    # Relations
+    following = models.ManyToManyField('self',
+                                       symmetrical=False,
+                                       verbose_name=_('Followed users'),
+                                       related_name='followers')
+                                           
 
-    # Use default user manager as the only extra attribute has a reasonable
-    # default value
+    # Manager
     objects = UserManager()
 
+    # Functions
     def save(self, *args, **kwargs):
+        """
+        Create a profile object and relate user to it upon creation of a user
+        object
+        """
         if self.pk is None:
-            # user object being saved for the first time (creating)
             super(User, self).save(*args, **kwargs)
             Profile.objects.create(user=self)
         else:
-            # user object has been saved before (updating)
             super(User, self).save(*args, **kwargs)
     
 
@@ -38,6 +43,7 @@ class Badge(models.Model):
     title = models.CharField(_('Badge title'),
                              max_length=100)
     description = models.TextField(_('Badge description'))
+
 
 class Profile(models.Model):
     """
