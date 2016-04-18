@@ -1,11 +1,12 @@
-import pdb
-
 from django.db import models
+from django.db.models import Sum
 from django.db.utils import IntegrityError
+from django.utils.functional import cached_property
 from django.utils.translation import ugettext_lazy as _
 
 import dateutil.parser
 
+from profiles.models import User
 from videos.mixins import VideoAPIMixin
 
 class Category(models.Model):
@@ -14,7 +15,14 @@ class Category(models.Model):
     of them here to easily find videos belonging to each category
     """
     # Attributes
+    # Should be unique but youtube has two separate categories named Comedy
     title = models.CharField(_('Category title'), max_length=100)
+
+    # Many to Many Relationships
+    followed_by = models.ManyToManyField(User,
+                                   verbose_name=_(
+                                       'Users following this category'))
+                                         
 
     def __str__(self):
         return self.title
@@ -27,6 +35,10 @@ class Tag(models.Model):
     # Attributes
     title = models.CharField(_('Tag title'), max_length=500, unique=True)
 
+    # Many to Many Relationships
+    followed_by = models.ManyToManyField(User,
+                                   verbose_name=_('Users following this tag'))
+
     def __str__(self):
         return self.title
 
@@ -35,7 +47,7 @@ class VideoManager(models.Manager, VideoAPIMixin):
     Custom manager needed to couple the gathering of data needed to create
     an object with its api calls and logic
     """
-    def create_videos(self, *video_ids):
+    def create_videos(self, user_id, *video_ids):
         """
         function allows for the singular or bulk creation of video objects
         given their video_id
@@ -73,8 +85,8 @@ class VideoManager(models.Manager, VideoAPIMixin):
                         published=dateutil.parser.parse(
                             video_info['snippet']['publishedAt']),
                         title=video_info['snippet']['title'],
+                        uploader_id=user_id,
                         video_id=video_ids[i])
-                        
                   for i, video_info
                   in enumerate(JSON['items'])]
         self.bulk_create(videos)
@@ -101,10 +113,7 @@ class VideoManager(models.Manager, VideoAPIMixin):
                             if tag not in extant_tags]
                 # Create any new tags
                 if new_tags:
-                    try:
-                        Tag.objects.bulk_create(new_tags)
-                    except IntegrityError:
-                        pdb.set_trace()
+                    Tag.objects.bulk_create(new_tags)
                 # Now gather all tag objects and associate them with the video
                 video_tags = Tag.objects.filter(title__in=tags[video.video_id])
                 video.tags.add(*video_tags)
@@ -128,12 +137,19 @@ class Video(models.Model):
     category = models.ForeignKey(Category,
                                  on_delete=models.CASCADE,
                                  verbose_name=_('Video category'))
-    # uploader = models.ForeignKey(_('Video uploader'), User)
+    uploader = models.ForeignKey(User,
+                                 on_delete=models.CASCADE,
+                                 verbose_name=_('Video uploader'),
+                                 related_name='uploaded_videos')
 
     # Many to Many Relationships
-    tags = models.ManyToManyField(Tag,
-                                  verbose_name=_('Video tags'))
-                                  
+    tags = models.ManyToManyField(Tag, verbose_name=_('Video tags'))
+    votes = models.ManyToManyField(User,
+                                   verbose_name=_('Users who liked video'),
+                                   related_name='liked_videos')
+    favorited_by = models.ManyToManyField(User,
+                                          verbose_name=_(
+                                              'Users who favorited video'))
 
     # Manager
     objects = VideoManager()
@@ -176,5 +192,52 @@ class ViewCount(models.Model):
     # Manager
     objects = ViewCountManager()
 
+    class Meta:
+        # Avoid creation of multiple viewcounts for same datetime and video
+        unique_together = ('video', 'count_datetime')
+
     def __str__(self):
         return str(self.count_datetime) + ': ' + str(self.views)
+
+class Comment(models.Model):
+    # Attributes
+    text = models.CharField(_('Comment text'), max_length=10000)
+    created = models.DateTimeField(_('Comment creation time'),
+                                   auto_now_add=True)
+
+    # Relations
+    parent = models.ForeignKey('self',
+                               null=True,
+                               default=None,
+                               on_delete=models.CASCADE,
+                               verbose_name=_('Comment parent'))
+    commenter = models.ForeignKey(User,
+                                  verbose_name=_('Commenter'),
+                                  on_delete=models.CASCADE)
+    video = models.ForeignKey(Video,
+                              on_delete=models.CASCADE,
+                              verbose_name=_('Video comment is for'))
+
+    # ManyToMany
+    votes = models.ManyToManyField(User,
+                                   verbose_name=_('User votes on comment'),
+                                   through='Vote',
+                                   related_name=_('comments_voted_on'))
+    
+    @cached_property
+    def score(self):
+        return self.vote_set.aggregate(Sum('value')).get('value__sum', 0)
+
+class Vote(models.Model):
+    value = models.SmallIntegerField(_('Vote value assigned by User, 1 or -1'))
+
+    # Relations
+    comment = models.ForeignKey(Comment,
+                                on_delete=models.CASCADE,
+                                verbose_name=_('Comment voted on'))
+    voter = models.ForeignKey(User,
+                              on_delete=models.CASCADE,
+                              verbose_name=_('User who voted on comment'))
+
+    class Meta:
+        unique_together = ('comment', 'voter')
