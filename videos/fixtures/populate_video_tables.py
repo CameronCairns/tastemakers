@@ -8,7 +8,7 @@ import requests
 import faker
 
 from profiles.models import User, Profile
-from videos.models import Category, Comment, Tag, Video
+from videos.models import Category, Comment, Tag, Video, Vote
 from videos.mixins import VideoAPIMixin
 
 fake = faker.Factory.create()
@@ -111,6 +111,26 @@ def populate_comment_table():
                     for comment
                     in Comment.objects.all().order_by('?')[:100]]
         Comment.objects.bulk_create(comments)
+
+def populate_user_votes_comments():
+    video_ids = list(Video.objects.values_list('id', flat=True))
+    comment_ids = list(Comment.objects.values_list('id', flat=True))
+    user_ids = list(User.objects.values_list('id', flat=True))
+    for user_id in user_ids:
+        comments = random.sample(comment_ids, 10000) # 10,000 is 5% of 200,000
+        positive_votes = [Vote(value=1,
+                               comment_id=comment_id,
+                               voter_id=user_id)
+                          for comment_id
+                          in comments[:5000]]
+        negative_votes = [Vote(value=-1,
+                               comment_id=comment_id,
+                               voter_id=user_id)
+                          for comment_id
+                          in comments[5000:]]
+        votes = itertools.chain(positive_votes, negative_votes)
+        Vote.objects.bulk_create(votes)
+
 
 def populate_tables():
     populate_category_table()
