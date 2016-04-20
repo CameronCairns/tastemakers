@@ -1,5 +1,6 @@
 coverage==4.0.3
 Django==1.9.5
+djangorestframework==3.3.3
 fake-factory==0.5.7
 flake8==2.5.4
 mccabe==0.4.0
