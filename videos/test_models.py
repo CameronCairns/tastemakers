@@ -1,20 +1,19 @@
-import itertools
-
 from django.db import transaction
 from django.db.utils import IntegrityError
 from django.test import TestCase
 
 from profiles.models import User
-from videos.models import Comment, Video, Vote, Category, Tag
+from videos.models import Category, Comment, CommentVote, Tag, Video, VideoVote
 from videos.mixins import VideoAPIMixin
+
 
 class VideosTestCase(TestCase, VideoAPIMixin):
     def setUp(self):
         parameters = dict(part='id',
                           fields='items/id/videoId',
-                          maxResults=10, 
+                          maxResults=10,
                           # Don't need to be embarassed while testing
-                          safeSearch='strict', 
+                          safeSearch='strict',
                           type='video')
         JSON = self._get_info_from_api('search', parameters)
         video_ids = [data['id']['videoId']
@@ -49,6 +48,7 @@ class VideosTestCase(TestCase, VideoAPIMixin):
         # them
         self.assertEqual(Video.objects.exclude(viewcount=None).count(),
                          Video.objects.count())
+
     def test_category_associated(self):
         self.assertEqual(Video.objects.exclude(category=None).count(),
                          Video.objects.count())
@@ -73,8 +73,8 @@ class VideosTestCase(TestCase, VideoAPIMixin):
         comment = Comment.objects.all()[0]
         user = User.objects.all()[0]
         # Test first vote works
-        vote = Vote.objects.create(value=1, comment=comment, voter=user)
-        self.assertEqual(Vote.objects.count(), 1)
+        vote = CommentVote.objects.create(value=1, comment=comment, voter=user)
+        self.assertEqual(CommentVote.objects.count(), 1)
         # Test that points are calculated properly
         self.assertEqual(comment.score, 1)
         # Test that negative votes create negative scores
@@ -89,7 +89,9 @@ class VideosTestCase(TestCase, VideoAPIMixin):
         try:
             # Should fail
             with transaction.atomic():
-                vote = Vote.objects.create(value=-1, comment=comment, voter=user)
+                vote = CommentVote.objects.create(value=-1,
+                                                  comment=comment,
+                                                  voter=user)
             self.assertTrue(0, 'duplicate vote allowed')
         except IntegrityError:
             pass
@@ -114,3 +116,14 @@ class VideosTestCase(TestCase, VideoAPIMixin):
         user.favorite_videos.add(*video_ids)
         self.assertEqual(user.favorite_videos.count(),
                          Video.objects.count())
+
+    def test_user_can_like_videos(self):
+        user = User.objects.all()[0]
+        video_ids = list(Video.objects.values_list('id', flat=True))
+        votes = [VideoVote(value=1,
+                           video_id=video_id,
+                           voter_id=user.id)
+                 for video_id
+                 in video_ids]
+        VideoVote.objects.bulk_create(votes)
+        self.assertEqual(user.videovote_set.count(), len(video_ids))

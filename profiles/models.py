@@ -2,6 +2,7 @@ from django.contrib.auth.models import AbstractUser, UserManager
 from django.db import models
 from django.utils.translation import ugettext_lazy as _
 
+
 class User(AbstractUser):
     """
     Class to define users for the website. Adds some extra attributes to the
@@ -17,7 +18,6 @@ class User(AbstractUser):
                                        symmetrical=False,
                                        verbose_name=_('Followed users'),
                                        related_name='followers')
-                                           
 
     # Manager
     objects = UserManager()
@@ -33,7 +33,7 @@ class User(AbstractUser):
             Profile.objects.create(user=self)
         else:
             super(User, self).save(*args, **kwargs)
-    
+
 
 class Badge(models.Model):
     """
@@ -47,7 +47,7 @@ class Badge(models.Model):
 
 class Profile(models.Model):
     """
-    Class to hold the profile information about a user. This information is 
+    Class to hold the profile information about a user. This information is
     not essential to most use cases so there is no need to keep this data
     stored with the core user object
     """
@@ -59,7 +59,6 @@ class Profile(models.Model):
     website = models.URLField(_('User website'),
                               blank=True,
                               default='')
-                              
     # User login and core information stored in custom User class
     user = models.OneToOneField(User,
                                 on_delete=models.CASCADE,

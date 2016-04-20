@@ -1,6 +1,5 @@
 from django.db import models
 from django.db.models import Sum
-from django.db.utils import IntegrityError
 from django.utils.functional import cached_property
 from django.utils.translation import ugettext_lazy as _
 
@@ -8,6 +7,7 @@ import dateutil.parser
 
 from profiles.models import User
 from videos.mixins import VideoAPIMixin
+
 
 class Category(models.Model):
     """
@@ -24,10 +24,10 @@ class Category(models.Model):
                                            'Users following this category'),
                                          symmetrical=False,
                                          related_name='followed_categories')
-                                         
 
     def __str__(self):
         return self.title
+
 
 class Tag(models.Model):
     """
@@ -46,6 +46,7 @@ class Tag(models.Model):
 
     def __str__(self):
         return self.title
+
 
 class VideoManager(models.Manager, VideoAPIMixin):
     """
@@ -68,8 +69,8 @@ class VideoManager(models.Manager, VideoAPIMixin):
                      in video_ids
                      if video_id not in extant_videos]
         # Define the fields to receive from the API
-        fields =('items/snippet('
-                 'publishedAt, categoryId, tags, title, description)')
+        fields = ('items/snippet('
+                  'publishedAt, categoryId, tags, title, description)')
         # Define the api parameters shared by all videos
         # Note the syntax in defining the id, api allows for getting info
         # on multiple videos given a comma separated video_id list
@@ -79,9 +80,9 @@ class VideoManager(models.Manager, VideoAPIMixin):
         JSON = self._get_info_from_api('videos', parameters)
         # Collect tags for creation and/or association after video creation
         tags = {video_ids[i]:
-                    (video_info['snippet']['tags']
-                    if 'tags' in video_info['snippet']
-                    else [])
+                (video_info['snippet']['tags']
+                 if 'tags' in video_info['snippet']
+                 else [])
                 for i, video_info
                 in enumerate(JSON['items'])}
         # Collect video objects for bulk creation
@@ -123,7 +124,7 @@ class VideoManager(models.Manager, VideoAPIMixin):
                 video_tags = Tag.objects.filter(title__in=tags[video.video_id])
                 video.tags.add(*video_tags)
         return videos
-                
+
 
 class Video(models.Model):
     # Attributes
@@ -150,11 +151,11 @@ class Video(models.Model):
     # Many to Many Relationships
     tags = models.ManyToManyField(Tag, verbose_name=_('Video tags'))
     votes = models.ManyToManyField(User,
+                                   through='VideoVote',
                                    verbose_name=_('Users who liked video'),
                                    related_name='liked_videos')
     favorited_by = models.ManyToManyField(User,
                                           related_name='favorite_videos',
-                                          symmetrical=False,
                                           verbose_name=_(
                                               'Users who favorited video'))
 
@@ -163,6 +164,7 @@ class Video(models.Model):
 
     def __str__(self):
         return self.title
+
 
 class ViewCountManager(models.Manager, VideoAPIMixin):
     """
@@ -184,6 +186,7 @@ class ViewCountManager(models.Manager, VideoAPIMixin):
         # Now create the object(s) with the gathered information
         self.bulk_create(viewcounts)
 
+
 class ViewCount(models.Model):
     # Attributes
     count_datetime = models.DateTimeField(
@@ -191,7 +194,7 @@ class ViewCount(models.Model):
         auto_now_add=True)
     views = models.BigIntegerField(_('Video view count'))
 
-    #Relationships
+    # Relationships
     video = models.ForeignKey(Video,
                               on_delete=models.CASCADE,
                               verbose_name=_('Video views are counted for'))
@@ -205,6 +208,7 @@ class ViewCount(models.Model):
 
     def __str__(self):
         return str(self.count_datetime) + ': ' + str(self.views)
+
 
 class Comment(models.Model):
     # Attributes
@@ -228,14 +232,17 @@ class Comment(models.Model):
     # ManyToMany
     votes = models.ManyToManyField(User,
                                    verbose_name=_('User votes on comment'),
-                                   through='Vote',
+                                   through='CommentVote',
                                    related_name=_('comments_voted_on'))
-    
+
     @cached_property
     def score(self):
-        return self.vote_set.aggregate(Sum('value')).get('value__sum', 0)
+        return self.commentvote_set.aggregate(
+                Sum('value')).get('value__sum', 0)
 
-class Vote(models.Model):
+
+class CommentVote(models.Model):
+    # Attributes
     value = models.SmallIntegerField(_('Vote value assigned by User, 1 or -1'))
 
     # Relations
@@ -248,3 +255,19 @@ class Vote(models.Model):
 
     class Meta:
         unique_together = ('comment', 'voter')
+
+
+class VideoVote(models.Model):
+    # Attributes
+    value = models.IntegerField(_('Vote value'))
+
+    # Relations
+    video = models.ForeignKey(Video,
+                              on_delete=models.CASCADE,
+                              verbose_name=_('Video voted on'))
+    voter = models.ForeignKey(User,
+                              on_delete=models.CASCADE,
+                              verbose_name=_('User who voted on video'))
+
+    class Meta:
+        unique_together = ('video', 'voter')
