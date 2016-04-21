@@ -127,6 +127,11 @@ class VideoManager(models.Manager, VideoAPIMixin):
                           fields=fields)
         return(self._get_info_from_api('videos', parameters))
 
+    def order_by_votes(self, descending=True):
+        query = self.annotate(vote_score=Sum('videovote__value'))
+        ordering = '{}vote_score'.format('-' if descending else '')
+        return query.order_by(ordering)
+
 
 class Video(models.Model):
     # Attributes
