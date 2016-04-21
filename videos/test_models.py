@@ -119,11 +119,12 @@ class VideosTestCase(TestCase, VideoAPIMixin):
 
     def test_user_can_like_videos(self):
         user = User.objects.all()[0]
-        video_ids = list(Video.objects.values_list('id', flat=True))
-        votes = [VideoVote(value=1,
-                           video_id=video_id,
-                           voter_id=user.id)
-                 for video_id
-                 in video_ids]
-        VideoVote.objects.bulk_create(votes)
+        video_ids = Video.objects.values_list('id', flat=True)
+        not_voted_on = [video_id
+                        for video_id
+                        in video_ids
+                        if video_id
+                        not in user.liked_videos.values_list('id', flat=True)]
+        if not_voted_on:
+            VideoVote.objects.create_votes(user.id, *not_voted_on)
         self.assertEqual(user.videovote_set.count(), len(video_ids))

@@ -92,9 +92,11 @@ def populate_video_table():
                                         in JSON['items']]
                                        for JSON
                                        in responses]))
+    user_index = 0
     for index in range(0, len(video_ids), 50):
-        Video.objects.create_videos(user_ids[index % 50],
+        Video.objects.create_videos(user_ids[user_index],
                                     *video_ids[index:index+50])
+        user_index += 1
 
 
 def populate_user_relationships():
@@ -168,21 +170,18 @@ def populate_user_votes_videos():
     Populate user voting data by having each user randomly vote for
     50 videos
     """
-    video_ids = list(Video.objects.values_list('id', flat=True))
-    user_ids = list(User.objects.values_list('id', flat=True))
-    for user_id in user_ids:
-        videos = random.sample(video_ids, 50)  # 50 is 5% of 1,000
-        positive_votes = [VideoVote(value=1,
-                                    video_id=video_id,
-                                    voter_id=user_id)
-                          for video_id
-                          in videos[:5000]]
-        negative_votes = [VideoVote(value=-1,
-                                    video_id=video_id,
-                                    voter_id=user_id)
-                          for video_id
-                          in videos[5000:]]
-        votes = itertools.chain(positive_votes, negative_votes)
+    video_ids = set(Video.objects.values_list('id', flat=True))
+    users = list(User.objects.all())
+    for user in users:
+        # User has already voted for videos they uploaded
+        user_videos = set(user.uploaded_videos.values_list('id', flat=True))
+        not_user_videos = video_ids - user_videos
+        videos = random.sample(not_user_videos, 50)  # 50 is 5% of 1,000
+        votes = [VideoVote(value=1,
+                           video_id=video_id,
+                           voter_id=user.id)
+                 for video_id
+                 in videos]
         VideoVote.objects.bulk_create(votes)
 
 

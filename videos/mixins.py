@@ -2,6 +2,7 @@ import os
 
 import requests
 
+
 class APIReturnedError(Exception):
     """
     The api response contains an error, occurs when response.ok is False
@@ -15,6 +16,7 @@ class APIReturnedError(Exception):
             return repr(self.error_message)
         else:
             return 'Not specified in api response'
+
 
 class VideoAPIMixin:
     # Constants

@@ -9,6 +9,17 @@ from profiles.models import User
 from videos.mixins import VideoAPIMixin
 
 
+def remove_existing(manager, items, attribute):
+    """
+    Helper function to remove items from a list that have already been
+    created
+    """
+    unique_items = list(set(items))
+    kwargs = {attribute + '__in': unique_items}
+    extant_items = manager.filter(**kwargs).values_list(attribute, flat=True)
+    return [item for item in unique_items if item not in extant_items]
+
+
 class Category(models.Model):
     """
     Every youtube video must have a category assigned to it so we keep track
@@ -29,6 +40,18 @@ class Category(models.Model):
         return self.title
 
 
+class TagManager(models.Manager):
+    def create_tags(self, *tag_titles):
+        new_tags = remove_existing(self, tag_titles, 'title')
+        tags = [self.model(title=tag)
+                for tag
+                in new_tags]
+        # Create any new tags
+        if tags:
+            self.bulk_create(tags)
+        return self.filter(title__in=tag_titles).values_list('id', flat=True)
+
+
 class Tag(models.Model):
     """
     Each youtube video has a variety of tags. Store them as a separate table
@@ -37,12 +60,15 @@ class Tag(models.Model):
     # Attributes
     title = models.CharField(_('Tag title'), max_length=500, unique=True)
 
-    # Many to Many Relationships
+    # Relations
     followed_by = models.ManyToManyField(User,
                                          verbose_name=_(
                                              'Users following this tag'),
                                          symmetrical=False,
                                          related_name='followed_tags')
+
+    # Manager
+    objects = TagManager()
 
     def __str__(self):
         return self.title
@@ -56,74 +82,50 @@ class VideoManager(models.Manager, VideoAPIMixin):
     def create_videos(self, user_id, *video_ids):
         """
         function allows for the singular or bulk creation of video objects
-        given their video_id
+        given their video_id(s)
         """
-        # Ensure there are no repeat video_ids entered
-        video_ids = list(set(video_ids))
-        # Find videos that already exist to avoid bulk create failure
-        extant_videos = Video.objects.filter(
-                video_id__in=video_ids).values_list('video_id', flat=True)
-        # Derive new video_ids from excluding members of extant video_ids
-        video_ids = [video_id
-                     for video_id
-                     in video_ids
-                     if video_id not in extant_videos]
-        # Define the fields to receive from the API
-        fields = ('items/snippet('
-                  'publishedAt, categoryId, tags, title, description)')
-        # Define the api parameters shared by all videos
-        # Note the syntax in defining the id, api allows for getting info
-        # on multiple videos given a comma separated video_id list
-        parameters = dict(part='snippet',
-                          id=', '.join(video_ids),
-                          fields=fields)
-        JSON = self._get_info_from_api('videos', parameters)
-        # Collect tags for creation and/or association after video creation
+        new_videos = remove_existing(self, video_ids, 'video_id')
+        JSON = self.get_video_info(new_videos)
         tags = {video_ids[i]:
                 (video_info['snippet']['tags']
                  if 'tags' in video_info['snippet']
                  else [])
                 for i, video_info
                 in enumerate(JSON['items'])}
-        # Collect video objects for bulk creation
-        videos = [Video(category_id=video_info['snippet']['categoryId'],
-                        description=video_info['snippet']['description'],
-                        published=dateutil.parser.parse(
-                            video_info['snippet']['publishedAt']),
-                        title=video_info['snippet']['title'],
-                        uploader_id=user_id,
-                        video_id=video_ids[i])
+        videos = [self.model(category_id=video_info['snippet']['categoryId'],
+                             description=video_info['snippet']['description'],
+                             published=dateutil.parser.parse(
+                                 video_info['snippet']['publishedAt']),
+                             title=video_info['snippet']['title'],
+                             uploader_id=user_id,
+                             video_id=video_ids[i])
                   for i, video_info
                   in enumerate(JSON['items'])]
-        self.bulk_create(videos)
-        # Need to fetch the saved videos from the database since bulk create
-        # does not update the previously created video objects
-        videos = Video.objects.filter(video_id__in=video_ids).all()
-        # Find the view count for all the recently created videos
-        ViewCount.objects.create_viewcounts(*videos)
-        # Create and/or associate each videos tags with that video using a tag
-        # object
-        for video in videos:
-            if tags[video.video_id]:
-                # Ensure there are no repeat tags
-                unique_tags = list(set(tags[video.video_id]))
-                # Find tags that already exist to avoid bulk create failure
-                extant_tags = Tag.objects.filter(
-                        title__in=unique_tags).values_list(
-                                'title', flat=True)
-                # Derive new_tags from any associated tags that don't already
-                # exist in Tags table
-                new_tags = [Tag(title=tag)
-                            for tag
-                            in unique_tags
-                            if tag not in extant_tags]
-                # Create any new tags
-                if new_tags:
-                    Tag.objects.bulk_create(new_tags)
-                # Now gather all tag objects and associate them with the video
-                video_tags = Tag.objects.filter(title__in=tags[video.video_id])
-                video.tags.add(*video_tags)
+        if videos:
+            self.bulk_create(videos)
+            # Get primary keys generated after bulk create, and videos objects
+            videos = self.filter(video_id__in=new_videos).all()
+            video_ids = videos.values_list('id', flat=True)
+            video_list = list(videos)
+            # Users automatically vote for any video they submit
+            VideoVote.objects.create_votes(user_id, *video_ids)
+            # Find the view count for all the recently created videos
+            ViewCount.objects.create_viewcounts(*video_list)
+            for video in video_list:
+                # Create and/or associate each videos tags with that video
+                if tags[video.video_id]:
+                    video_tags = Tag.objects.create_tags(*tags[video.video_id])
+                    video.tags.add(*video_tags)
         return videos
+
+    def get_video_info(self, video_ids):
+        # API Request Parameters
+        fields = ('items/snippet('
+                  'publishedAt, categoryId, tags, title, description)')
+        parameters = dict(part='snippet',
+                          id=', '.join(video_ids),
+                          fields=fields)
+        return(self._get_info_from_api('videos', parameters))
 
 
 class Video(models.Model):
@@ -179,8 +181,8 @@ class ViewCountManager(models.Manager, VideoAPIMixin):
         # Get JSON from API response
         JSON = self._get_info_from_api('videos', parameters)
         # Extract view counts for each video
-        viewcounts = [ViewCount(views=video_info['statistics']['viewCount'],
-                                video=videos[i])
+        viewcounts = [self.model(views=video_info['statistics']['viewCount'],
+                                 video=videos[i])
                       for i, video_info
                       in enumerate(JSON['items'])]
         # Now create the object(s) with the gathered information
@@ -257,6 +259,19 @@ class CommentVote(models.Model):
         unique_together = ('comment', 'voter')
 
 
+class VideoVoteManager(models.Manager):
+    def create_votes(self, user_id, *video_ids):
+        # Want this to fail loudly if logic tries to vote on video already
+        # voted on so no stripping of existing values done
+        vote_weight = 1
+        votes = [self.model(value=vote_weight,
+                            video_id=video_id,
+                            voter_id=user_id)
+                 for video_id
+                 in video_ids]
+        self.bulk_create(votes)
+
+
 class VideoVote(models.Model):
     # Attributes
     value = models.IntegerField(_('Vote value'))
@@ -268,6 +283,9 @@ class VideoVote(models.Model):
     voter = models.ForeignKey(User,
                               on_delete=models.CASCADE,
                               verbose_name=_('User who voted on video'))
+
+    # Manager
+    objects = VideoVoteManager()
 
     class Meta:
         unique_together = ('video', 'voter')
