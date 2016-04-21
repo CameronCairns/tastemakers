@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Tag, Video
+from videos.models import Tag, Video
 
 
 class TagSerializer(serializers.ModelSerializer):
