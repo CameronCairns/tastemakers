@@ -86,7 +86,7 @@ class VideoManager(models.Manager, VideoAPIMixin):
         """
         new_videos = remove_existing(self, video_ids, 'video_id')
         JSON = self.get_video_info(new_videos)
-        tags = {video_ids[i]:
+        tags = {new_videos[i]:
                 (video_info['snippet']['tags']
                  if 'tags' in video_info['snippet']
                  else [])
@@ -98,7 +98,7 @@ class VideoManager(models.Manager, VideoAPIMixin):
                                  video_info['snippet']['publishedAt']),
                              title=video_info['snippet']['title'],
                              uploader_id=user_id,
-                             video_id=video_ids[i])
+                             video_id=new_videos[i])
                   for i, video_info
                   in enumerate(JSON['items'])]
         if videos:
@@ -226,6 +226,37 @@ class ViewCount(models.Model):
         return str(self.count_datetime) + ': ' + str(self.views)
 
 
+class CommentManager(models.Manager):
+    def order_by_votes(self, descending=True):
+        query = self.annotate(vote_score=Sum('commentvote__value'))
+        ordering = '{}vote_score'.format('-' if descending else '')
+        return query.order_by(ordering)
+
+    def get_children(self, depth=None):
+        """
+        Function to return the children of a parent process, descends into
+        each childs children as well until all children have been exaughsted
+        or the maximum depth has been reached
+        """
+        if depth is None:
+            return [[comment, comment.children.get_children()]
+                    if comment.children.count()
+                    else comment
+                    for comment
+                    in self.all()]
+        elif depth == 0:
+            # Maximum depth reached so just return all children related to this
+            # object and exit the function
+            return self.all()
+        else:
+            # Still traversing down child relations
+            return [comment.children.get_children(depth=depth-1)
+                    if comment.children.count()
+                    else comment
+                    for comment
+                    in self.all()]
+
+
 class Comment(models.Model):
     # Attributes
     text = models.CharField(_('Comment text'), max_length=10000)
@@ -234,9 +265,9 @@ class Comment(models.Model):
 
     # Relations
     parent = models.ForeignKey('self',
+                               related_name='children',
                                null=True,
                                default=None,
-                               on_delete=models.CASCADE,
                                verbose_name=_('Comment parent'))
     commenter = models.ForeignKey(User,
                                   verbose_name=_('Commenter'),
@@ -255,6 +286,9 @@ class Comment(models.Model):
     def score(self):
         return self.commentvote_set.aggregate(
                 Sum('value')).get('value__sum', 0)
+
+    # Manager
+    objects = CommentManager()
 
 
 class CommentVote(models.Model):
