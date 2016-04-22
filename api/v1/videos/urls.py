@@ -5,7 +5,7 @@ from rest_framework import routers
 from api.v1.videos import viewsets
 
 router = routers.DefaultRouter()
-router.register(r'videos', viewsets.VideoListViewSet)
+router.register(r'videos', viewsets.VideoViewSet)
 
 urlpatterns = [
          url(r'^', include(router.urls))

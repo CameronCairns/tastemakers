@@ -6,7 +6,7 @@ from videos.models import Video
 from .serializers import VideoSerializer
 
 
-class VideoListViewSet(viewsets.ModelViewSet):
+class VideoViewSet(viewsets.ModelViewSet):
     serializer_class = VideoSerializer
     queryset = Video.objects.all().prefetch_related('tags')
 
@@ -15,9 +15,3 @@ class VideoListViewSet(viewsets.ModelViewSet):
         most_liked_videos = Video.objects.order_by_votes()[20]
         serializer = self.get_serializer(most_liked_videos, many=True)
         return Response(serializer.data)
-
-
-class VideoDetailViewSet(viewsets.ModelViewSet):
-    serializer_class = VideoSerializer
-    lookup_field = 'id'
-    queryset = Video.objects.all()
