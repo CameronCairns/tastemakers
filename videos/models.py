@@ -290,6 +290,20 @@ class Comment(models.Model):
     # Manager
     objects = CommentManager()
 
+    # Methods
+    def save(self, *args, **kwargs):
+        """
+        User that creates comment automatically votes for it
+        """
+        if self.pk is None:
+            # Has not been saved before so it is being created
+            super(Comment, self).save(*args, **kwargs)
+            CommentVote.create(value=1,
+                               voter=self.commenter,
+                               comment=self)
+        else:
+            super(Comment, self).save(*args, **kwargs)
+
 
 class CommentVote(models.Model):
     # Attributes
