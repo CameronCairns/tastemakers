@@ -58,6 +58,17 @@ class VideosTestCase(TestCase, VideoAPIMixin):
         self.assertEqual(Video.objects.exclude(category=None).count(),
                          Video.objects.count())
 
+    def test_correct_data_associated_with_video(self):
+        fields = ('items/snippet('
+                  'publishedAt, categoryId, tags, title, description)')
+        parameters = dict(part='snippet', fields=fields)
+        for video in Video.objects.all():
+            parameters['id'] = video.video_id
+            JSON = self._get_info_from_api('videos', parameters)
+            snippet = JSON['items'][0]['snippet']
+            self.assertEqual(snippet['title'], video.title)
+            self.assertEqual(snippet['description'], video.description)
+
     def test_commenting_on_videos(self):
         # Test that comments associated with Videos
         self.assertEqual(Video.objects.exclude(comment=None).count(),
