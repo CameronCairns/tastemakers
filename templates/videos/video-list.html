@@ -1,9 +1,10 @@
 {% extends 'base.html' %}
 
+{% load bootstrap_pagination %}
+
 {% block content %}
     <h2>Most Liked Videos</h2>
     {% for object in object_list %}
-        {{ object.video_id }}
         <div class='well'>
             <div class='row'>
                 <div class='col-md-8'>
@@ -32,4 +33,11 @@
             </div>
         </div>    
     {% endfor %}
+    <div class='row'>
+        <div class='col-md-3'></div>
+        <div class='col-md-6 col-centered'>
+            {% bootstrap_paginate page_obj show_index_range='true' range=5 %}
+        </div>
+        <div class='col-md-3'></div>
+    </div>
 {% endblock %}
