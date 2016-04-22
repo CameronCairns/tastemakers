@@ -35,7 +35,7 @@ class User(AbstractUser):
             super(User, self).save(*args, **kwargs)
 
     def __str__(self):
-        return self.first_name + self.last_name
+        return '{0} {1}'.format(self.first_name, self.last_name)
 
 
 class Badge(models.Model):
