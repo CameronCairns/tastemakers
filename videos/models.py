@@ -1,5 +1,5 @@
 from django.db import models
-from django.db.models import Sum
+from django.db.models import Max, Sum
 from django.utils.functional import cached_property
 from django.utils.translation import ugettext_lazy as _
 
@@ -128,8 +128,17 @@ class VideoManager(models.Manager, VideoAPIMixin):
         return(self._get_info_from_api('videos', parameters))
 
     def order_by_votes(self, descending=True):
+        # Replace this with a more complex algorithm later
         query = self.annotate(vote_score=Sum('videovote__value'))
+        # query = query.prefetch_related('videovote')
         ordering = '{}vote_score'.format('-' if descending else '')
+        return query.order_by(ordering)
+
+    def order_by_views(self, descending=True):
+        # Replace this with a more complex algorithm later
+        query = self.annotate(max_views=Max('viewcount__views'))
+        # query = query.prefetch_related('viewcount')
+        ordering = '{}max_views'.format('-' if descending else '')
         return query.order_by(ordering)
 
 
