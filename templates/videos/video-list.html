@@ -3,12 +3,15 @@
 {% load bootstrap_pagination %}
 
 {% block content %}
-    <h2>Most Liked Videos</h2>
+<h2>{{ title }}</h2>
     {% for object in object_list %}
         <div class='well'>
             <div class='row'>
                 <div class='col-md-8'>
-                    <h3>{{ object.title }}</h3>
+                    <h4>
+                        #{{object.0}}
+                        {{ object.1.title }}
+                    </h4>
                 </div>
                 <div class='col-md-4'>
                     <button class='btn btn-danger'>
@@ -23,12 +26,12 @@
             </div>
             <div class='embed-responsive embed-responsive-16by9'>
                 <iframe class='embed-responsive-item'
-                 src='https://www.youtube.com/embed/{{ object.video_id }}/'>
+                 src='https://www.youtube.com/embed/{{ object.1.video_id }}/'>
                 </iframe>
             </div>
             <div class='row'>
                 <p>
-                    {{ object.description }}
+                    {{ object.1.description }}
                 </p>
             </div>
         </div>    

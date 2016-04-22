@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+
+{% load bootstrap_pagination %}
+
+{% block content %}
+    <h2>Comments for {{ video.title }}</h2>
+    {% for comment in object_list %}
+        <div class='row'>
+            <h3>
+                {{ comment.commenter }}
+            </h3>
+            <p>
+                score: {{comment.score}} points
+            </p>
+        </div>    
+        <div class='row'>
+            <p>
+                {{ comment.text }}
+            </p>
+        </div>    
+    {% endfor %}
+{% endblock %}
